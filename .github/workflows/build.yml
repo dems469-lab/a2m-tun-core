@@ -107,7 +107,6 @@ jobs:
         run: |
           mkdir -p app/libs
           cp sing-box/libbox.aar app/libs/libbox.aar
-          cp sing-box/libbox-legacy.aar app/libs/libbox-legacy.aar
 
       - name: Set up Java 21 for Android Gradle Plugin
         uses: actions/setup-java@v4
