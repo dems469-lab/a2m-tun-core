@@ -100,31 +100,31 @@ object ShareLinkParser {
     private fun parseVmess(link: String, index: Int): JsonObject {
         val payload = link.substringAfter("://")
         val data = decodeBase64(payload) ?: error("Invalid vmess link")
-        val object = json.parseToJsonElement(data).jsonObject
-        val host = object.string("add")
-        val port = object.string("port").toIntOrNull() ?: error("Missing server port")
+        val vmess = json.parseToJsonElement(data).jsonObject
+        val host = vmess.string("add")
+        val port = vmess.string("port").toIntOrNull() ?: error("Missing server port")
         return buildJsonObject {
             put("type", "vmess")
             put("tag", "proxy-${index + 1}")
             put("server", host)
             put("server_port", port)
-            put("uuid", object.string("id"))
-            object.stringOrNull("aid")?.takeIf { it != "0" }?.let { put("alter_id", it.toInt()) }
-            object.stringOrNull("scy")?.takeIf { it.isNotBlank() }?.let { put("security", it) }
-            val network = object.stringOrNull("net") ?: "tcp"
+            put("uuid", vmess.string("id"))
+            vmess.stringOrNull("aid")?.takeIf { it != "0" }?.let { put("alter_id", it.toInt()) }
+            vmess.stringOrNull("scy")?.takeIf { it.isNotBlank() }?.let { put("security", it) }
+            val network = vmess.stringOrNull("net") ?: "tcp"
             if (network == "ws") {
                 put("transport", buildJsonObject {
                     put("type", "ws")
-                    object.stringOrNull("path")?.let { put("path", it) }
-                    object.stringOrNull("host")?.let { hostHeader ->
+                    vmess.stringOrNull("path")?.let { put("path", it) }
+                    vmess.stringOrNull("host")?.let { hostHeader ->
                         put("headers", buildJsonObject { put("Host", hostHeader) })
                     }
                 })
             }
-            if (object.stringOrNull("tls") == "tls") {
+            if (vmess.stringOrNull("tls") == "tls") {
                 put("tls", buildJsonObject {
                     put("enabled", true)
-                    object.stringOrNull("sni")?.takeIf { it.isNotBlank() }?.let { put("server_name", it) }
+                    vmess.stringOrNull("sni")?.takeIf { it.isNotBlank() }?.let { put("server_name", it) }
                 })
             }
         }

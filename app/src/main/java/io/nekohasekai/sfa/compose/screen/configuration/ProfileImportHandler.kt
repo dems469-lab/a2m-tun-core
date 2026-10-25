@@ -9,6 +9,7 @@ import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.utils.HTTPClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
