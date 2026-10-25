@@ -36,11 +36,36 @@ jobs:
           ref: v${{ steps.versions.outputs.sing-box-version }}
           path: sing-box
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Install the pinned Go release
+        env:
+          GO_VERSION: ${{ steps.versions.outputs.go-version }}
+        shell: bash
+        run: |
+          archive="${GO_VERSION}.linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location "https://go.dev/dl/?mode=json&include=all" \
+            --output "$RUNNER_TEMP/go-releases.json"
+          checksum="$(python3 -c 'import json, os; releases=json.load(open(os.environ["RUNNER_TEMP"] + "/go-releases.json")); version=os.environ["GO_VERSION"]; item=next((f for r in releases if r["version"] == version for f in r["files"] if f["filename"] == version + ".linux-amd64.tar.gz"), None); print(item["sha256"] if item else "")')"
+          if [[ -z "$checksum" ]]; then
+            echo "Official Go archive metadata not found for $GO_VERSION" >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error --location "https://go.dev/dl/${archive}" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "$checksum  $RUNNER_TEMP/$archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/go-sdk"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/go-sdk"
+          echo "$RUNNER_TEMP/go-sdk/go/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/go-sdk/go/bin/go" version
+
+      - name: Cache Go module and build data
+        uses: actions/cache@v4
         with:
-          go-version: ${{ steps.versions.outputs.go-version }}
-          cache-dependency-path: sing-box/go.sum
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ steps.versions.outputs.go-version }}-${{ hashFiles('sing-box/go.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ steps.versions.outputs.go-version }}-
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
