@@ -1,0 +1,84 @@
+name: Android debug build
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-other-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out A2M TUN
+        uses: actions/checkout@v4
+
+      - name: Read project versions
+        id: versions
+        shell: bash
+        run: |
+          echo "go-version=$(sed -n 's/^GO_VERSION=//p' version.properties)" >> "$GITHUB_OUTPUT"
+          echo "sing-box-version=$(sed -n 's/^VERSION_NAME=//p' version.properties)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17 for libbox
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Check out matching sing-box source
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: v${{ steps.versions.outputs.sing-box-version }}
+          path: sing-box
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.versions.outputs.go-version }}
+          cache-dependency-path: sing-box/go.sum
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK and NDK packages
+        shell: bash
+        run: |
+          sdkmanager "platform-tools" "platforms;android-37" "build-tools;36.0.0" "ndk;28.0.13004108"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.0.13004108" >> "$GITHUB_ENV"
+
+      - name: Build libbox AARs
+        working-directory: sing-box
+        run: |
+          make lib_install
+          make lib_android
+
+      - name: Put libbox AARs where Gradle expects them
+        run: |
+          mkdir -p app/libs
+          cp sing-box/libbox.aar app/libs/libbox.aar
+          cp sing-box/libbox-legacy.aar app/libs/libbox-legacy.aar
+
+      - name: Set up Java 21 for Android Gradle Plugin
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble other debug APK
+        run: ./gradlew assembleOtherDebug --stacktrace
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: a2m-tun-other-debug
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
