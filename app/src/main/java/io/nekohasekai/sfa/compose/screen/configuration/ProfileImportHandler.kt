@@ -103,6 +103,12 @@ class ProfileImportHandler(private val context: Context) {
 
     suspend fun parseQRCode(data: String): QRCodeParseResult = withContext(Dispatchers.IO) {
         try {
+            if (ShareLinkParser.isSubscription(data)) {
+                return@withContext QRCodeParseResult.LocalProfile(
+                    name = ShareLinkParser.parse(data).name,
+                )
+            }
+
             // Check if it's a sing-box remote profile import link
             if (data.startsWith("sing-box://import-remote-profile")) {
                 try {
@@ -147,6 +153,10 @@ class ProfileImportHandler(private val context: Context) {
 
     suspend fun importFromQRCode(data: String): ImportResult = withContext(Dispatchers.IO) {
         try {
+            if (ShareLinkParser.isSubscription(data)) {
+                return@withContext importShareLinks(data)
+            }
+
             // Check if it's a sing-box remote profile import link
             if (data.startsWith("sing-box://import-remote-profile")) {
                 try {
@@ -161,7 +171,7 @@ class ProfileImportHandler(private val context: Context) {
 
             // Check if it's a URL or direct profile content
             if (data.startsWith("http://") || data.startsWith("https://")) {
-                // Handle remote profile URL
+                // Remote URLs may contain sing-box JSON or a share-link subscription.
                 val profileName = extractProfileNameFromUrl(data)
                 importRemoteProfile(profileName, data)
             } else {
@@ -246,6 +256,15 @@ class ProfileImportHandler(private val context: Context) {
     }
 
     private suspend fun importRemoteProfile(name: String, url: String): ImportResult {
+        val config = HTTPClient().use { client ->
+            val content = client.getString(url)
+            if (isJsonConfiguration(content)) content else ShareLinkParser.parse(content, name).config
+        }
+        try {
+            Libbox.checkConfig(config)
+        } catch (e: Exception) {
+            return ImportResult.Error(context.getString(R.string.error_invalid_configuration, e.message))
+        }
         val typedProfile =
             TypedProfile().apply {
                 type = TypedProfile.Type.Remote
@@ -260,17 +279,26 @@ class ProfileImportHandler(private val context: Context) {
                 userOrder = ProfileManager.nextOrder()
             }
 
-        // Create empty config file for remote profile
+        // Store the fetched configuration so the new profile can connect immediately.
         val fileID = ProfileManager.nextFileID()
         val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
         val configFile = File(configDirectory, "$fileID.json")
-        configFile.writeText("{}")
+        configFile.writeText(config)
         typedProfile.path = configFile.path
 
         // Create profile in database and select it
         ProfileManager.create(profile, andSelect = true)
 
         return ImportResult.Success(profile)
+    }
+
+    private suspend fun importShareLinks(data: String): ImportResult {
+        val parsed = try {
+            ShareLinkParser.parse(data)
+        } catch (e: Exception) {
+            return ImportResult.Error(context.getString(R.string.error_decode_profile, e.message))
+        }
+        return importJsonConfiguration(parsed.config, parsed.name)
     }
 
     private fun extractProfileNameFromUrl(url: String): String {

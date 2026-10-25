@@ -13,6 +13,7 @@ import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.compose.screen.configuration.ShareLinkParser
 import io.nekohasekai.sfa.utils.HTTPClient
 import java.io.File
 import java.util.Date
@@ -75,7 +76,13 @@ class UpdateProfileWork {
                     continue
                 }
                 try {
-                    val content = HTTPClient().use { it.getString(profile.typed.remoteURL) }
+                    val downloaded = HTTPClient().use { it.getString(profile.typed.remoteURL) }
+                    val content =
+                        if (downloaded.trimStart().startsWith("{") || downloaded.trimStart().startsWith("[")) {
+                            downloaded
+                        } else {
+                            ShareLinkParser.parse(downloaded, profile.name).config
+                        }
                     Libbox.checkConfig(content)
                     val file = File(profile.typed.path)
                     if (file.readText() != content) {
