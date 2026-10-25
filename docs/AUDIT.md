@@ -38,6 +38,8 @@ Commandes exécutées : `./gradlew --version`, `java -version`, `go version`, v�
 - Aucun répertoire `app/libs` ni AAR suivi par Git n'a été trouvé.
 - Aucun résultat de build Android n'est attesté dans cet audit.
 
+`./gradlew tasks --all` a échoué avant l'affichage des tâches, lors de la résolution du plugin `com.android.application` version `9.3.1` (échec après recherche dans Google, Maven Central et Gradle Plugin Portal). Cela empêche de vérifier localement le graphe des tâches ou d'attribuer cet échec à l'absence des AAR. Le journal complet affiché par Gradle se termine par `BUILD FAILED in 1m 13s` ; aucune relance n'a été faite, car l'environnement manque également le JDK 21, le SDK Android et Go nécessaires aux étapes ultérieures.
+
 Le JDK 21, le SDK Android 37 et le NDK attendu ne sont pas confirmés dans l'environnement courant. Il faut les vérifier dans l'environnement CI avant d'établir un build reproductible.
 
 ## Points à traiter pour l'identité A2M TUN
