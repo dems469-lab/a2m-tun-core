@@ -73,7 +73,7 @@ jobs:
 
       - name: Check generated sing-box configuration
         working-directory: sing-box
-        run: go run ./cmd/sing-box check -c "$GITHUB_WORKSPACE/app/src/test/resources/config/share-link-generated.json"
+        run: go run -tags with_utls ./cmd/sing-box check -c "$GITHUB_WORKSPACE/app/src/test/resources/config/share-link-generated.json"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
