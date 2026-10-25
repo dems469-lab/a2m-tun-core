@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.IosShare
@@ -74,6 +75,7 @@ import io.nekohasekai.sfa.compose.util.RelativeTimeFormatter
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.ktx.errorDialogBuilder
+import io.nekohasekai.sfa.ktx.clipboardText
 import io.nekohasekai.sfa.ktx.shareProfile
 import io.nekohasekai.sfa.ktx.shareProfileAsJson
 import kotlinx.coroutines.Dispatchers
@@ -414,6 +416,34 @@ fun ProfilesCard(
                 ListItem(
                     modifier = Modifier.clickable {
                         onHideAddProfileSheet()
+                        val value = clipboardText
+                        if (value.isNullOrBlank()) {
+                            context.errorDialogBuilder(Exception(context.getString(R.string.toast_clipboard_empty))).show()
+                        } else {
+                            coroutineScope.launch {
+                                when (val result = importHandler.importFromQRCode(value)) {
+                                    is ProfileImportHandler.ImportResult.Success -> onProfileEdit(result.profile)
+                                    is ProfileImportHandler.ImportResult.Error -> {
+                                        context.errorDialogBuilder(Exception(result.message)).show()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.ContentPaste,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    headlineContent = { Text(stringResource(R.string.profile_add_import_clipboard)) },
+                    supportingContent = { Text(stringResource(R.string.import_from_clipboard_description)) },
+                )
+
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onHideAddProfileSheet()
                         showQRScanSheet = true
                     },
                     leadingContent = {
@@ -560,6 +590,16 @@ fun ProfilesCard(
             onScanResult = { result ->
                 showQRScanSheet = false
                 when (result) {
+                    is QRScanResult.ShareLink -> {
+                        coroutineScope.launch {
+                            when (val importResult = importHandler.importFromQRCode(result.value)) {
+                                is ProfileImportHandler.ImportResult.Success -> onProfileEdit(importResult.profile)
+                                is ProfileImportHandler.ImportResult.Error -> {
+                                    context.errorDialogBuilder(Exception(importResult.message)).show()
+                                }
+                            }
+                        }
+                    }
                     is QRScanResult.QRSData -> {
                         coroutineScope.launch {
                             when (val parseResult = importHandler.parseQRSData(result.data)) {

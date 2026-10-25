@@ -109,6 +109,9 @@ jobs:
       - name: Assemble other debug APK
         run: ./gradlew assembleOtherDebug --stacktrace
 
+      - name: Run other debug unit tests
+        run: ./gradlew testOtherDebugUnitTest --stacktrace
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:

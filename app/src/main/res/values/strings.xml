@@ -385,6 +385,8 @@
     <string name="toast_clipboard_empty">Clipboard is empty</string>
     <string name="toast_copied_to_clipboard">Exported to clipboard</string>
     <string name="toast_imported_from_clipboard">Imported from clipboard</string>
+    <string name="profile_add_import_clipboard">Import from clipboard</string>
+    <string name="import_from_clipboard_description">Import a share link or a base64 subscription</string>
 
     <!-- Scanning -->
     <string name="profile_add_scan_use_front_camera">Front camera</string>
