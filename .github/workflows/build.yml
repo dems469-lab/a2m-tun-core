@@ -75,7 +75,7 @@ jobs:
       - name: Install Android SDK and NDK packages
         shell: bash
         run: |
-          sdkmanager "platform-tools" "platforms;android-37" "build-tools;36.0.0" "ndk;28.0.13004108"
+          sdkmanager --channel=3 "platform-tools" "platforms;android-37" "build-tools;37.0.0" "ndk;28.0.13004108"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.0.13004108" >> "$GITHUB_ENV"
 
       - name: Build libbox AARs
