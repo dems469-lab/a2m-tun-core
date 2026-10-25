@@ -1,0 +1,118 @@
+name: Android debug build
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-other-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out A2M TUN
+        uses: actions/checkout@v4
+
+      - name: Read project versions
+        id: versions
+        shell: bash
+        run: |
+          echo "go-version=$(sed -n 's/^GO_VERSION=//p' version.properties)" >> "$GITHUB_OUTPUT"
+          echo "sing-box-version=$(sed -n 's/^VERSION_NAME=//p' version.properties)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17 for libbox
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Check out matching sing-box source
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: v${{ steps.versions.outputs.sing-box-version }}
+          path: sing-box
+
+      - name: Install the pinned Go release
+        env:
+          GO_VERSION: ${{ steps.versions.outputs.go-version }}
+        shell: bash
+        run: |
+          archive="${GO_VERSION}.linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location "https://go.dev/dl/?mode=json&include=all" \
+            --output "$RUNNER_TEMP/go-releases.json"
+          checksum="$(python3 -c 'import json, os; releases=json.load(open(os.environ["RUNNER_TEMP"] + "/go-releases.json")); version=os.environ["GO_VERSION"]; item=next((f for r in releases if r["version"] == version for f in r["files"] if f["filename"] == version + ".linux-amd64.tar.gz"), None); print(item["sha256"] if item else "")')"
+          if [[ -z "$checksum" ]]; then
+            echo "Official Go archive metadata not found for $GO_VERSION" >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error --location "https://go.dev/dl/${archive}" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "$checksum  $RUNNER_TEMP/$archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/go-sdk"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/go-sdk"
+          echo "$RUNNER_TEMP/go-sdk/go/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/go-sdk/go/bin/go" version
+
+      - name: Cache Go module and build data
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ steps.versions.outputs.go-version }}-${{ hashFiles('sing-box/go.sum') }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ steps.versions.outputs.go-version }}-
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK and NDK packages
+        shell: bash
+        run: |
+          sdkmanager --channel=3 "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" "ndk;28.0.13004108"
+          if [[ -d "$ANDROID_HOME/platforms/android-37.0" && ! -e "$ANDROID_HOME/platforms/android-37" ]]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.0.13004108" >> "$GITHUB_ENV"
+
+      - name: Build libbox AARs
+        working-directory: sing-box
+        run: |
+          go_bin="$(go env GOPATH)/bin"
+          export PATH="$go_bin:$PATH"
+          make lib_install
+          "$go_bin/gomobile" init
+          command -v gobind
+          make lib_android
+
+      - name: Put libbox AARs where Gradle expects them
+        run: |
+          mkdir -p app/libs
+          cp sing-box/libbox.aar app/libs/libbox.aar
+          cp sing-box/libbox-legacy.aar app/libs/libbox-legacy.aar
+
+      - name: Set up Java 21 for Android Gradle Plugin
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble other debug APK
+        run: ./gradlew assembleOtherDebug --stacktrace
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: a2m-tun-other-debug
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
