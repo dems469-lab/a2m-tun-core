@@ -21,6 +21,8 @@ class ShareLinkParserTest {
             assertEquals(1, result.serverCount)
             assertTrue(result.config.contains("\"type\":\"tun\""))
             assertTrue(result.config.contains("\"final\":\"proxy-1\""))
+            assertTrue(result.config.contains("\"type\":\"local\",\"tag\":\"local\""))
+            assertTrue(!result.config.contains("\"address\":\"local\""))
         }
     }
 

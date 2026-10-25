@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: android-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -67,6 +71,10 @@ jobs:
           restore-keys: |
             go-${{ runner.os }}-${{ steps.versions.outputs.go-version }}-
 
+      - name: Check generated sing-box configuration
+        working-directory: sing-box
+        run: go run -tags with_utls ./cmd/sing-box check -c "$GITHUB_WORKSPACE/app/src/test/resources/config/share-link-generated.json"
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -82,20 +90,23 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.0.13004108" >> "$GITHUB_ENV"
 
       - name: Build libbox AARs
+        id: libbox
         working-directory: sing-box
         run: |
+          started=$(date +%s)
           go_bin="$(go env GOPATH)/bin"
           export PATH="$go_bin:$PATH"
           make lib_install
           "$go_bin/gomobile" init
           command -v gobind
           make lib_android
+          rm -f libbox-legacy.aar
+          echo "seconds=$(( $(date +%s) - started ))" >> "$GITHUB_OUTPUT"
 
       - name: Put libbox AARs where Gradle expects them
         run: |
           mkdir -p app/libs
           cp sing-box/libbox.aar app/libs/libbox.aar
-          cp sing-box/libbox-legacy.aar app/libs/libbox-legacy.aar
 
       - name: Set up Java 21 for Android Gradle Plugin
         uses: actions/setup-java@v4
@@ -107,7 +118,22 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Assemble other debug APK
-        run: ./gradlew assembleOtherDebug --stacktrace
+        id: apk
+        run: |
+          started=$(date +%s)
+          ./gradlew assembleOtherDebug --stacktrace
+          echo "seconds=$(( $(date +%s) - started ))" >> "$GITHUB_OUTPUT"
+
+      - name: Report build time and APK sizes
+        shell: bash
+        run: |
+          echo "### Build measurements" >> "$GITHUB_STEP_SUMMARY"
+          echo "libbox build: ${{ steps.libbox.outputs.seconds }} s" >> "$GITHUB_STEP_SUMMARY"
+          echo "assembleOtherDebug: ${{ steps.apk.outputs.seconds }} s" >> "$GITHUB_STEP_SUMMARY"
+          find app/build/outputs/apk -type f -name '*.apk' -print0 | while IFS= read -r -d '' apk; do
+            size=$(stat -c '%s' "$apk")
+            printf '%s: %s bytes\n' "$apk" "$size" >> "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Run other debug unit tests
         run: ./gradlew testOtherDebugUnitTest --stacktrace
@@ -118,4 +144,4 @@ jobs:
           name: a2m-tun-other-debug
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7

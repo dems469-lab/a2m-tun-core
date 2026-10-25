@@ -180,7 +180,7 @@ object ShareLinkParser {
                 })
             })
             put("dns", buildJsonObject {
-                put("servers", buildJsonArray { add(buildJsonObject { put("tag", "local"); put("address", "local") }) })
+                put("servers", buildJsonArray { add(buildJsonObject { put("type", "local"); put("tag", "local") }) })
             })
             put("outbounds", completeOutbounds)
             put("route", buildJsonObject { put("auto_detect_interface", true); put("final", finalTag) })
