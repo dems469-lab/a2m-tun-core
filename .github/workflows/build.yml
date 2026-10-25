@@ -85,7 +85,7 @@ jobs:
         working-directory: sing-box
         run: |
           make lib_install
-          gomobile init
+          "$(go env GOPATH)/bin/gomobile" init
           make lib_android
 
       - name: Put libbox AARs where Gradle expects them
