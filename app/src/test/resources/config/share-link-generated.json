@@ -32,7 +32,7 @@
         },
         "reality": {
           "enabled": true,
-          "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "short_id": "abcd"
         }
       },
