@@ -84,8 +84,11 @@ jobs:
       - name: Build libbox AARs
         working-directory: sing-box
         run: |
+          go_bin="$(go env GOPATH)/bin"
+          export PATH="$go_bin:$PATH"
           make lib_install
-          "$(go env GOPATH)/bin/gomobile" init
+          "$go_bin/gomobile" init
+          command -v gobind
           make lib_android
 
       - name: Put libbox AARs where Gradle expects them
